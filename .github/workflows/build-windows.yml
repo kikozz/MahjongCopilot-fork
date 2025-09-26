@@ -32,7 +32,6 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # 用 onedir 布局；把需要的资源目录明确拷进产物
       - name: Build (onedir layout)
         shell: pwsh
         run: |
@@ -46,19 +45,23 @@ jobs:
             --add-data "resources;resources" `
             main.py
 
-      # 将 dist\MahjongCopilot\* 摆成你要的最终结构，并写入 version 文件
-      - name: Shape output tree
+      - name: Shape output tree + write version
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path package | Out-Null
           Copy-Item -Recurse -Force "dist\MahjongCopilot\*" "package\"
           if (Test-Path "package\main.exe") { Move-Item -Force "package\main.exe" "package\MahjongCopilot.exe" }
-          $ver = if ("${{ github.ref_type }}" -eq "tag") { "${{ github.ref_name }}" } else { "${{ github.sha.Substring(0,7) }}" }
+
+          # 用表达式取原始值，再在 PowerShell 里 Substring
+          $refType = "${{ github.ref_type }}"
+          $refName = "${{ github.ref_name }}"
+          $sha     = "${{ github.sha }}"
+          if ($refType -eq 'tag') { $ver = $refName } else { $ver = $sha.Substring(0,7) }
           Set-Content -Path "package\version" -Value $ver -Encoding ASCII
+
           Write-Host "==== package tree ===="
           cmd /c tree package /F
 
-      # 严格校验产物结构；不满足则失败
       - name: Validate expected tree
         shell: pwsh
         run: |
@@ -67,16 +70,12 @@ jobs:
             "models","proxinject","resources",
             "MahjongCopilot.exe","version"
           )
-          $ok = $true
           foreach ($item in $required) {
             if (-not (Test-Path -LiteralPath ("package\" + $item))) {
-              Write-Error "Missing: package\$item"
-              $ok = $false
+              throw "Missing: package\$item"
             }
           }
-          if (-not $ok) { throw "Output tree mismatch." }
 
-      # 上传构建物（目录即你要的成品）
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
