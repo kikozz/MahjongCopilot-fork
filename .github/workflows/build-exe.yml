@@ -1,88 +1,80 @@
-name: Build Windows EXE (PyInstaller + Playwright)
+name: Build Windows EXE (pure onedir)
 
 on:
   push:
-    branches:
-      - main
-    tags:
-      - "v*"
+    branches: [ main, master ]
   pull_request:
-
-permissions:
-  contents: write
-
-env:
-  APP_NAME: MyApp               # exe 名称
-  ENTRYPOINT: main.py           # 入口脚本（确保在仓库根目录下）
-  REQS_FILE: requirements.txt   # 依赖清单
+  tags:
+    - 'v*'   # 打 tag 自动发 Release
 
 jobs:
-  build-win:
+  build:
     runs-on: windows-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11"]
+    env:
+      APP_NAME: MahjongCopilot
+      ENTRY_SCRIPT: main.py           # 入口脚本
+      PY_VERSION: '3.11'
+      ICON_PATH: resources\\icon.ico  # 没图标就删掉这行和对应参数
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: ${{ env.PY_VERSION }}
+          cache: 'pip'
 
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~\AppData\Local\pip\Cache
-          key: pip-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles(env.REQS_FILE) }}
-          restore-keys: |
-            pip-${{ runner.os }}-${{ matrix.python-version }}-
-
-      - name: Create venv & install dependencies
-        shell: pwsh
+      - name: Install dependencies
+        shell: bash
         run: |
           python -m pip install --upgrade pip
-          python -m venv .venv
-          .\.venv\Scripts\Activate.ps1
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          pip install pyinstaller==5.11.0
 
-          if (Test-Path "${{ env.REQS_FILE }}") { pip install -r "${{ env.REQS_FILE }}" }
-
-          pip install pyinstaller playwright
-          playwright install chromium
-
-      - name: Build EXE with PyInstaller
+      - name: Build (PyInstaller onedir → _internal only)
         shell: pwsh
         run: |
-          .\.venv\Scripts\Activate.ps1
-          pyinstaller --noconfirm --clean --onefile --name "${{ env.APP_NAME }}" "${{ env.ENTRYPOINT }}"
+          if (Test-Path build) { Remove-Item build -Recurse -Force }
+          if (Test-Path dist)  { Remove-Item dist  -Recurse -Force }
 
-      - name: Package artifact (zip)
+          $icon = (Test-Path $env:ICON_PATH) ? "--icon=`"$env:ICON_PATH`"" : ""
+
+          # 关键参数：--contents-directory _internal
+          pyinstaller `
+            --name "$env:APP_NAME" `
+            --noconsole `
+            --contents-directory _internal `
+            $icon `
+            "$env:ENTRY_SCRIPT"
+
+          $outDir = Join-Path "dist" "$env:APP_NAME"
+          $exe = Join-Path $outDir ("$env:APP_NAME.exe")
+          if (!(Test-Path $exe)) { throw "Executable not found: $exe" }
+          if (!(Test-Path (Join-Path $outDir "_internal"))) { throw "_internal not found. Check build logs." }
+
+      - name: Archive (zip the onedir folder)
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path build_out | Out-Null
-          if (Test-Path "dist\${{ env.APP_NAME }}.exe") {
-            Copy-Item "dist\${{ env.APP_NAME }}.exe" build_out -Force
-          } elseif (Test-Path "dist\${{ env.APP_NAME }}\${{ env.APP_NAME }}.exe") {
-            Copy-Item "dist\${{ env.APP_NAME }}\*" build_out -Recurse -Force
-          } else {
-            Copy-Item "dist\*" build_out -Recurse -Force
-          }
-          Compress-Archive -Path build_out\* -DestinationPath "${{ env.APP_NAME }}-win-${{ matrix.python-version }}.zip" -Force
+          $outDir = Join-Path "dist" "$env:APP_NAME"
+          $zip = "dist\${{ env.APP_NAME }}-win64.zip"
+          if (Test-Path $zip) { Remove-Item $zip -Force }
+          Compress-Archive -Path "$outDir\*" -DestinationPath $zip -Force
+          echo "ZIP_PATH=$zip" >> $env:GITHUB_ENV
 
-      - name: Upload artifact (CI)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.APP_NAME }}-win-${{ matrix.python-version }}
-          path: ${{ env.APP_NAME }}-win-${{ matrix.python-version }}.zip
+          name: ${{ env.APP_NAME }}-onedir
+          path: ${{ env.ZIP_PATH || format('dist/{0}-win64.zip', env.APP_NAME) }}
+          if-no-files-found: error
+          retention-days: 7
 
-      - name: Release on tag
+      - name: Release (on tag)
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ env.APP_NAME }}-win-${{ matrix.python-version }}.zip
+          files: ${{ env.ZIP_PATH }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
