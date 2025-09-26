@@ -3,7 +3,7 @@ name: Build Windows EXE (onedir)
 on:
   push:
     branches: [ main, master ]
-    tags: [ 'v*' ]         # ← 现在 tags 放在 push 下面了
+    tags: [ 'v*' ]
   pull_request:
 
 jobs:
@@ -13,7 +13,7 @@ jobs:
       APP_NAME: MahjongCopilot
       ENTRY_SCRIPT: main.py
       PY_VERSION: '3.11'
-      ICON_PATH: resources\\icon.ico  # 没图标就删这行
+      ICON_PATH: resources\\icon.ico
 
     steps:
       - name: Checkout
@@ -30,9 +30,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install pyinstaller==5.11.0
+          pip install pyinstaller==6.6.0
 
-      - name: Build (PyInstaller onedir → _internal only)
+      - name: Build (PyInstaller onedir → _internal)
         shell: pwsh
         run: |
           if (Test-Path build) { Remove-Item build -Recurse -Force }
