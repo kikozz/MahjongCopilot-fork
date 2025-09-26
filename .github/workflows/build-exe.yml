@@ -13,7 +13,7 @@ permissions:
 
 env:
   APP_NAME: MyApp               # exe 名称
-  ENTRYPOINT: main.py           # 入口脚本
+  ENTRYPOINT: main.py           # 入口脚本（确保在仓库根目录下）
   REQS_FILE: requirements.txt   # 依赖清单
 
 jobs:
@@ -58,18 +58,7 @@ jobs:
         shell: pwsh
         run: |
           .\.venv\Scripts\Activate.ps1
-          $extraArgs = ""
-          if (Test-Path "${{ env.ICON_PATH }}") { $extraArgs = "--icon `"${{ env.ICON_PATH }}`"" }
-          # 如果是 GUI 程序想隐藏黑窗，就取消下面一行的注释
-          # $extraArgs = "$extraArgs --noconsole"
-
-          .\.venv\Scripts\pyinstaller `
-            --noconfirm `
-            --clean `
-            --onefile `
-            --name "${{ env.APP_NAME }}" `
-            $extraArgs `
-            "${{ env.ENTRYPOINT }}"
+          pyinstaller --noconfirm --clean --onefile --name "${{ env.APP_NAME }}" "${{ env.ENTRYPOINT }}"
 
       - name: Package artifact (zip)
         shell: pwsh
