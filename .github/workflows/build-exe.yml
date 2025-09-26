@@ -1,18 +1,19 @@
-name: Build Windows EXE (PyInstaller + venv + Playwright)
+name: Build Windows EXE (PyInstaller + Playwright)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+    tags:
+      - "v*"
   pull_request:
-  tags:
-    - "v*"
 
 permissions:
-  contents: write  # 允许在打 tag 时创建 Release
+  contents: write  # 允许创建 Release
 
 env:
-  APP_NAME: MyApp
-  ENTRYPOINT: main.py           # 你的主程序入口
+  APP_NAME: MyApp               # 改成你的应用名
+  ENTRYPOINT: main.py           # 入口脚本
   REQS_FILE: requirements.txt   # 依赖清单
   ICON_PATH: assets/app.ico     # 可选：图标（没有就保持不存在）
 
@@ -29,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python ${{ matrix.python-version }}
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -42,7 +43,7 @@ jobs:
           restore-keys: |
             pip-${{ runner.os }}-${{ matrix.python-version }}-
 
-      - name: Create & activate venv, install deps (requirements + PyInstaller + Playwright)
+      - name: Create venv & install dependencies
         shell: pwsh
         run: |
           python -m pip install --upgrade pip
@@ -51,10 +52,8 @@ jobs:
 
           if (Test-Path $env:REQS_FILE) { pip install -r $env:REQS_FILE }
 
-          # 构建和浏览器自动化所需
+          # 安装打包和浏览器依赖
           pip install pyinstaller playwright
-
-          # 安装 Chromium（仅打包/测试阶段需要，运行时若用到也会复用缓存目录）
           playwright install chromium
 
       - name: Build EXE with PyInstaller
@@ -63,7 +62,7 @@ jobs:
           .\.venv\Scripts\Activate.ps1
           $extraArgs = ""
           if (Test-Path $env:ICON_PATH) { $extraArgs = "--icon `"$env:ICON_PATH`"" }
-          # GUI 程序想隐藏黑窗，取消下一行注释：
+          # 如果是 GUI 程序想隐藏黑窗，取消下一行注释：
           # $extraArgs = "$extraArgs --noconsole"
 
           .\.venv\Scripts\pyinstaller `
