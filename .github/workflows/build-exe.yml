@@ -1,20 +1,19 @@
-name: Build Windows EXE (pure onedir)
+name: Build Windows EXE (onedir)
 
 on:
   push:
     branches: [ main, master ]
+    tags: [ 'v*' ]         # ← 现在 tags 放在 push 下面了
   pull_request:
-  tags:
-    - 'v*'   # 打 tag 自动发 Release
 
 jobs:
   build:
     runs-on: windows-latest
     env:
       APP_NAME: MahjongCopilot
-      ENTRY_SCRIPT: main.py           # 入口脚本
+      ENTRY_SCRIPT: main.py
       PY_VERSION: '3.11'
-      ICON_PATH: resources\\icon.ico  # 没图标就删掉这行和对应参数
+      ICON_PATH: resources\\icon.ico  # 没图标就删这行
 
     steps:
       - name: Checkout
@@ -41,7 +40,6 @@ jobs:
 
           $icon = (Test-Path $env:ICON_PATH) ? "--icon=`"$env:ICON_PATH`"" : ""
 
-          # 关键参数：--contents-directory _internal
           pyinstaller `
             --name "$env:APP_NAME" `
             --noconsole `
@@ -50,9 +48,8 @@ jobs:
             "$env:ENTRY_SCRIPT"
 
           $outDir = Join-Path "dist" "$env:APP_NAME"
-          $exe = Join-Path $outDir ("$env:APP_NAME.exe")
-          if (!(Test-Path $exe)) { throw "Executable not found: $exe" }
-          if (!(Test-Path (Join-Path $outDir "_internal"))) { throw "_internal not found. Check build logs." }
+          if (!(Test-Path (Join-Path $outDir "$env:APP_NAME.exe"))) { throw "exe not found" }
+          if (!(Test-Path (Join-Path $outDir "_internal"))) { throw "_internal not found" }
 
       - name: Archive (zip the onedir folder)
         shell: pwsh
