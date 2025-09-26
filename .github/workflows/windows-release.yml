@@ -1,0 +1,46 @@
+name: Windows Release (PyInstaller onedir)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (例如 v0.1.0-win)'
+        required: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip wheel setuptools
+          pip install -r requirements.txt
+          pip install pyinstaller playwright
+          python -m playwright install chromium
+
+      - name: Build (onedir)
+        run: |
+          pyinstaller --noconfirm --clean build_support/MahjongCopilot.spec
+
+      - name: Pack 7z
+        shell: pwsh
+        run: |
+          choco install 7zip -y
+          Push-Location dist
+          7z a -t7z -mx=7 MahjongCopilot.windows.7z .\MahjongCopilot\*
+          Pop-Location
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          name: ${{ github.event.inputs.tag }}
+          files: |
+            dist/MahjongCopilot.windows.7z
