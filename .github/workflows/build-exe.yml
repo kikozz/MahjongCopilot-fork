@@ -9,13 +9,12 @@ on:
   pull_request:
 
 permissions:
-  contents: write  # 允许创建 Release
+  contents: write
 
 env:
-  APP_NAME: MyApp               # 改成你的应用名
+  APP_NAME: MyApp               # exe 名称
   ENTRYPOINT: main.py           # 入口脚本
   REQS_FILE: requirements.txt   # 依赖清单
-  ICON_PATH: assets/app.ico     # 可选：图标（没有就保持不存在）
 
 jobs:
   build-win:
@@ -50,9 +49,8 @@ jobs:
           python -m venv .venv
           .\.venv\Scripts\Activate.ps1
 
-          if (Test-Path $env:REQS_FILE) { pip install -r $env:REQS_FILE }
+          if (Test-Path "${{ env.REQS_FILE }}") { pip install -r "${{ env.REQS_FILE }}" }
 
-          # 安装打包和浏览器依赖
           pip install pyinstaller playwright
           playwright install chromium
 
@@ -61,30 +59,30 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           $extraArgs = ""
-          if (Test-Path $env:ICON_PATH) { $extraArgs = "--icon `"$env:ICON_PATH`"" }
-          # 如果是 GUI 程序想隐藏黑窗，取消下一行注释：
+          if (Test-Path "${{ env.ICON_PATH }}") { $extraArgs = "--icon `"${{ env.ICON_PATH }}`"" }
+          # 如果是 GUI 程序想隐藏黑窗，就取消下面一行的注释
           # $extraArgs = "$extraArgs --noconsole"
 
           .\.venv\Scripts\pyinstaller `
             --noconfirm `
             --clean `
             --onefile `
-            --name "$env:APP_NAME" `
+            --name "${{ env.APP_NAME }}" `
             $extraArgs `
-            "$env:ENTRYPOINT"
+            "${{ env.ENTRYPOINT }}"
 
       - name: Package artifact (zip)
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path build_out | Out-Null
-          if (Test-Path "dist\${env:APP_NAME}.exe") {
-            Copy-Item "dist\${env:APP_NAME}.exe" build_out -Force
-          } elseif (Test-Path "dist\${env:APP_NAME}\${env:APP_NAME}.exe") {
-            Copy-Item "dist\${env:APP_NAME}\*" build_out -Recurse -Force
+          if (Test-Path "dist\${{ env.APP_NAME }}.exe") {
+            Copy-Item "dist\${{ env.APP_NAME }}.exe" build_out -Force
+          } elseif (Test-Path "dist\${{ env.APP_NAME }}\${{ env.APP_NAME }}.exe") {
+            Copy-Item "dist\${{ env.APP_NAME }}\*" build_out -Recurse -Force
           } else {
             Copy-Item "dist\*" build_out -Recurse -Force
           }
-          Compress-Archive -Path build_out\* -DestinationPath "${env:APP_NAME}-win-${{ matrix.python-version }}.zip" -Force
+          Compress-Archive -Path build_out\* -DestinationPath "${{ env.APP_NAME }}-win-${{ matrix.python-version }}.zip" -Force
 
       - name: Upload artifact (CI)
         uses: actions/upload-artifact@v4
