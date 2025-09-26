@@ -3,8 +3,9 @@ import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_submodules
 
-BASE = Path(__file__).resolve().parent.parent  # project root (spec lives in build_support/)
-def p(*parts): 
+BASE = Path(os.getcwd())
+
+def p(*parts):
     return str(BASE.joinpath(*parts))
 
 hiddenimports = []
@@ -14,25 +15,21 @@ for pkg in ["mitmproxy", "playwright", "tkinter"]:
     except Exception:
         pass
 
-# Folders to include (match your screenshot)
-data_dirs = ["chrome_ext","libriichi3p","liqi_proto","models","proxinject","resources"]
+# 确保这些目录和文件都会被打进去
 datas = []
-for d in data_dirs:
-    full = BASE / d
-    if full.exists():
+for d in ["chrome_ext","libriichi3p","liqi_proto","models","proxinject","resources"]:
+    if (BASE / d).exists():
         datas.append((p(d), d))
 
-# Single files to include
-for f in ["version"]:
-    full = BASE / f
-    if full.exists():
-        datas.append((p(f), "."))
+# 单个文件 version
+if (BASE / "version").exists():
+    datas.append((p("version"), "."))
 
 block_cipher = None
 
 a = Analysis(
     [p("main.py")],
-    pathex=[p("")],
+    pathex=[str(BASE)],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
@@ -58,7 +55,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
-    console=False,
+    console=False,  # 这是 GUI 程序，不要弹黑框
     icon=p("resources","icon.ico") if (BASE/"resources"/"icon.ico").exists() else None,
 )
 
